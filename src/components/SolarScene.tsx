@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, ThreeEvent, useFrame } from "@react-three/fiber";
 import { OrbitControls, Stars, Text } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import { Billboard } from "@react-three/drei";
@@ -12,6 +12,8 @@ interface PlanetProps {
 	color: string;
 	name: string;
 	details: string;
+	planets: PlanetInfo[]; // qo'shildi
+	onPlanetClick: (planetInfo: PlanetInfo) => void;
 }
 
 interface MoonProps {
@@ -28,6 +30,94 @@ interface PlanetLabelProps {
 	name: string;
 	details: string;
 }
+
+interface PlanetInfo {
+	name: string;
+	radius: number;
+	orbitRadius: number;
+	speed: number;
+	color: string;
+	details: string;
+	description: string;
+	facts: string[];
+	composition: string[];
+	satellites: number;
+	dayLength: string;
+	yearLength: string;
+}
+
+interface PlanetDetailsProps {
+	planet: PlanetInfo | null;
+	onClose: () => void;
+}
+
+const PlanetDetailsPanel: React.FC<PlanetDetailsProps> = ({
+	planet,
+	onClose,
+}) => {
+	if (!planet) return null;
+
+	console.log("Rendering panel for planet:", planet.name); // panelni render qilishni tekshirish
+
+	return (
+		<div className="absolute top-4 right-4 w-80 bg-gray-900/90 backdrop-blur-lg rounded-lg p-4 text-white z-20">
+			<div className="flex justify-between items-center mb-4">
+				<h2 className="text-xl font-bold">{planet.name}</h2>
+				<button
+					onClick={onClose}
+					className="text-gray-400 hover:text-white"
+				>
+					✕
+				</button>
+			</div>
+
+			<div className="space-y-4">
+				<div>
+					<h3 className="text-sm text-gray-400 mb-1">Ta'rifi</h3>
+					<p className="text-sm">{planet.description}</p>
+				</div>
+
+				<div>
+					<h3 className="text-sm text-gray-400 mb-1">Faktlar</h3>
+					<ul className="text-sm space-y-1">
+						{planet.facts.map((fact, i) => (
+							<li key={i}>• {fact}</li>
+						))}
+					</ul>
+				</div>
+
+				<div className="grid grid-cols-2 gap-2">
+					<div>
+						<h3 className="text-sm text-gray-400">Yo'ldoshlar</h3>
+						<p className="text-sm font-medium">{planet.satellites}</p>
+					</div>
+					<div>
+						<h3 className="text-sm text-gray-400">Sutka</h3>
+						<p className="text-sm font-medium">{planet.dayLength}</p>
+					</div>
+					<div>
+						<h3 className="text-sm text-gray-400">Yil</h3>
+						<p className="text-sm font-medium">{planet.yearLength}</p>
+					</div>
+				</div>
+
+				<div>
+					<h3 className="text-sm text-gray-400 mb-1">Tarkibi</h3>
+					<div className="flex flex-wrap gap-2">
+						{planet.composition.map((element, i) => (
+							<span
+								key={i}
+								className="text-sm px-2 py-1 bg-gray-800 rounded"
+							>
+								{element}
+							</span>
+						))}
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+};
 
 const SaturnRings: React.FC<{ orbitRadius: number }> = ({ orbitRadius }) => {
 	const ringsRef = useRef<THREE.Mesh>(null);
@@ -301,6 +391,8 @@ const Planet: React.FC<PlanetProps> = ({
 	color,
 	name,
 	details,
+	planets, // props dan olish
+	onPlanetClick, // yangi prop qo'shish
 }) => {
 	const meshRef =
 		useRef<THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>>(null);
@@ -337,6 +429,19 @@ const Planet: React.FC<PlanetProps> = ({
 			<mesh
 				ref={meshRef}
 				position={[orbitRadius, 0, 0]}
+				onClick={(e: ThreeEvent<MouseEvent>) => {
+					console.log("Planet clicked:", name); // Click bo'layotganini tekshirish
+					e.stopPropagation();
+					console.log("Available planets:", planets); // planets array borligini tekshirish
+					const currentPlanet = planets.find((p: PlanetInfo) => {
+						console.log("Checking planet:", p.name, "against:", name); // qidiruv to'g'ri ishlatayotganini tekshirish
+						return p.name === name;
+					});
+					console.log("Found planet:", currentPlanet); // topilgan planetni tekshirish
+					if (currentPlanet) {
+						onPlanetClick(currentPlanet);
+					}
+				}}
 			>
 				<sphereGeometry args={[radius, 32, 32]} />
 				<meshStandardMaterial
@@ -405,7 +510,16 @@ const Sun: React.FC = () => {
 };
 
 const SolarSystem: React.FC = () => {
-	const planets = [
+	const [selectedPlanet, setSelectedPlanet] = useState<PlanetInfo | null>(null);
+
+	console.log("Current selected planet:", selectedPlanet); // state o'zgarishini kuzatish
+
+	const handlePlanetClick = (planetInfo: PlanetInfo) => {
+		console.log("Setting new planet:", planetInfo);
+		setSelectedPlanet(planetInfo);
+	};
+
+	const planetsData: PlanetInfo[] = [
 		{
 			name: "Merkuriy",
 			radius: 1.5,
@@ -413,6 +527,18 @@ const SolarSystem: React.FC = () => {
 			speed: 0.8,
 			color: "#A0522D",
 			details: "Eng kichik va tez sayyora",
+			description:
+				"Quyosh sistemasidagi eng kichik va Quyoshga eng yaqin sayyora",
+			facts: [
+				"Quyosh sistemasidagi eng kichik sayyora",
+				"Atmosferasi deyarli yo'q",
+				"Kunduzi harorat 430°C gacha ko'tariladi",
+				"Kechasi -180°C gacha tushadi",
+			],
+			composition: ["Temir", "Nikel", "Kremniy"],
+			satellites: 0,
+			dayLength: "59 Yer kuni",
+			yearLength: "88 Yer kuni",
 		},
 		{
 			name: "Venera",
@@ -420,7 +546,19 @@ const SolarSystem: React.FC = () => {
 			orbitRadius: 44,
 			speed: 0.6,
 			color: "#DEB887",
-			details: "Eng issiq sayyora",
+			details: "Yerning egizagi, ammo juda issiq",
+			description:
+				"Quyosh sistemasidagi ikkinchi sayyora, qalin atmosferaga ega",
+			facts: [
+				"Quyosh sistemasidagi eng issiq sayyora",
+				"Atmosferasi asosan karbonat angidrid gazidan iborat",
+				"Yomg'irlari oltingugurt kislotasidan iborat",
+				"O'z o'qi atrofida teskari yo'nalishda aylanadi",
+			],
+			composition: ["Karbonat angidrid", "Azot", "Olovli tog' jinslari"],
+			satellites: 0,
+			dayLength: "243 Yer kuni",
+			yearLength: "225 Yer kuni",
 		},
 		{
 			name: "Yer",
@@ -429,6 +567,16 @@ const SolarSystem: React.FC = () => {
 			speed: 0.4,
 			color: "#4169E1",
 			details: "Hayot mavjud yagona sayyora",
+			description: "Quyosh sistemasidagi yagona hayot bilan to'lgan sayyora",
+			facts: [
+				"Suvning suyuq holda mavjud bo'lishi bilan ajralib turadi",
+				"O'z atmosferasi kislorod va azotdan iborat",
+				"Magnit maydoni Yerni Quyosh nurlaridan himoya qiladi",
+			],
+			composition: ["Temir", "Kislorod", "Kremniy", "Aluminiy"],
+			satellites: 1,
+			dayLength: "24 soat",
+			yearLength: "365.25 Yer kuni",
 		},
 		{
 			name: "Mars",
@@ -437,6 +585,18 @@ const SolarSystem: React.FC = () => {
 			speed: 0.3,
 			color: "#CD5C5C",
 			details: "Qizil sayyora",
+			description:
+				"Yuzasi temir oksidi bilan qoplangan bo'lib, qizg'ish rangda ko'rinadi",
+			facts: [
+				"Ikki tabiiy yo'ldoshi bor: Fobos va Deymos",
+				"Yerga o'xshash fasllar mavjud",
+				"Suv izlari topilgan",
+				"Kelajakda insonlar ko'chib o'tishi mumkin",
+			],
+			composition: ["Temir oksid", "Kremniy", "Karbonat angidrid"],
+			satellites: 2,
+			dayLength: "24.6 soat",
+			yearLength: "687 Yer kuni",
 		},
 		{
 			name: "Yupiter",
@@ -445,6 +605,16 @@ const SolarSystem: React.FC = () => {
 			speed: 0.2,
 			color: "#DAA520",
 			details: "Eng katta sayyora",
+			description: "Quyosh sistemasidagi eng katta gaz giganti",
+			facts: [
+				"Eng katta sayyora va 79 ta tabiiy yo'ldoshi bor",
+				"Buyuk Qizil Dog' degan ulkan bo'roni mavjud",
+				"Asosan vodorod va geliy gazidan tashkil topgan",
+			],
+			composition: ["Vodorod", "Geliy", "Amoniy", "Metan"],
+			satellites: 79,
+			dayLength: "9.9 soat",
+			yearLength: "11.86 Yer yili",
 		},
 		{
 			name: "Saturn",
@@ -452,7 +622,17 @@ const SolarSystem: React.FC = () => {
 			orbitRadius: 138,
 			speed: 0.18,
 			color: "#F4A460",
-			details: "Halqali sayyora",
+			details: "Halqali gaz giganti",
+			description: "Eng go'zal halqalarga ega bo'lgan gaz giganti",
+			facts: [
+				"Eng keng halqali sayyora",
+				"Asosan vodorod va geliy gazidan iborat",
+				"Titan – Quyosh sistemasidagi eng katta yo'ldoshlardan biri",
+			],
+			composition: ["Vodorod", "Geliy", "Amoniy", "Metan"],
+			satellites: 83,
+			dayLength: "10.7 soat",
+			yearLength: "29.5 Yer yili",
 		},
 		{
 			name: "Uran",
@@ -461,6 +641,17 @@ const SolarSystem: React.FC = () => {
 			speed: 0.14,
 			color: "#87CEEB",
 			details: "Muzli gigant",
+			description:
+				"O'z o'qi bo'ylab deyarli yonboshlagan holatda harakatlanadi",
+			facts: [
+				"Eng sovuq sayyora, harorati -224°C gacha tushadi",
+				"O'z o'qi bo'ylab yonboshlagan holatda aylanadi",
+				"Asosan metan gazidan iborat bo'lib, shuning uchun ko'k rangda ko'rinadi",
+			],
+			composition: ["Vodorod", "Geliy", "Metan"],
+			satellites: 27,
+			dayLength: "17.2 soat",
+			yearLength: "84 Yer yili",
 		},
 		{
 			name: "Neptun",
@@ -469,6 +660,16 @@ const SolarSystem: React.FC = () => {
 			speed: 0.12,
 			color: "#1E90FF",
 			details: "Eng uzoq sayyora",
+			description: "Quyosh sistemasidagi eng uzoq gaz giganti",
+			facts: [
+				"Eng kuchli shamollar bu sayyorada qayd etilgan",
+				"Triton degan yirik tabiiy yo'ldoshi bor",
+				"Metan gazidan iborat bo'lib, ko'k rangga ega",
+			],
+			composition: ["Vodorod", "Geliy", "Metan"],
+			satellites: 14,
+			dayLength: "16.1 soat",
+			yearLength: "165 Yer yili",
 		},
 	];
 
@@ -523,10 +724,25 @@ const SolarSystem: React.FC = () => {
 				<ambientLight intensity={0.1} />
 				<Sun />
 
-				{planets.map((planet, index) => (
+				{/* {planets.map((planet, index) => (
 					<Planet
 						key={index}
 						{...planet}
+						onPlanetClick={(planetInfo: PlanetInfo) =>
+							setSelectedPlanet(planetInfo)
+						}
+					/>
+				))} */}
+				{planetsData.map((planet, index) => (
+					<Planet
+						key={index}
+						{...planet}
+						planets={planetsData} // planetsData ni planets nomi bilan uzatamiz
+						// onPlanetClick={(planetInfo: PlanetInfo) => {
+						// 	console.log("Planet clicked in Solar System:", planetInfo); // callback ishlayotganini tekshirish
+						// 	setSelectedPlanet(planetInfo);
+						// }}
+						onPlanetClick={handlePlanetClick}
 					/>
 				))}
 
@@ -574,6 +790,12 @@ const SolarSystem: React.FC = () => {
 					zoomSpeed={1.2}
 				/>
 			</Canvas>
+			{selectedPlanet && (
+				<PlanetDetailsPanel
+					planet={selectedPlanet}
+					onClose={() => setSelectedPlanet(null)}
+				/>
+			)}
 		</main>
 	);
 };
