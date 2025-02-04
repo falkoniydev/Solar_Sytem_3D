@@ -2,8 +2,11 @@ import React, { useRef, useState } from "react";
 import { Canvas, ThreeEvent, useFrame } from "@react-three/fiber";
 import { OrbitControls, Stars, Text } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
+import { motion, AnimatePresence } from "framer-motion";
 import { Billboard } from "@react-three/drei";
 import * as THREE from "three";
+import gsap from "gsap";
+import Clock from "./Clock";
 
 interface PlanetProps {
 	radius: number;
@@ -14,6 +17,7 @@ interface PlanetProps {
 	details: string;
 	planets: PlanetInfo[]; // qo'shildi
 	onPlanetClick: (planetInfo: PlanetInfo) => void;
+	style: {};
 }
 
 interface MoonProps {
@@ -51,6 +55,15 @@ interface PlanetDetailsProps {
 	onClose: () => void;
 }
 
+interface CameraFollowPlanetProps {
+	selectedPlanet: PlanetInfo | null;
+	controlsRef: any;
+}
+
+interface BackgroundPlaneProps {
+	handleClick: (event: ThreeEvent<MouseEvent>) => void;
+}
+
 const PlanetDetailsPanel: React.FC<PlanetDetailsProps> = ({
 	planet,
 	onClose,
@@ -60,62 +73,71 @@ const PlanetDetailsPanel: React.FC<PlanetDetailsProps> = ({
 	console.log("Rendering panel for planet:", planet.name); // panelni render qilishni tekshirish
 
 	return (
-		<div className="absolute top-4 right-4 w-80 bg-gray-900/90 backdrop-blur-lg rounded-lg p-4 text-white z-20">
-			<div className="flex justify-between items-center mb-4">
-				<h2 className="text-xl font-bold">{planet.name}</h2>
-				<button
-					onClick={onClose}
-					className="text-gray-400 hover:text-white"
-				>
-					✕
-				</button>
-			</div>
-
-			<div className="space-y-4">
-				<div>
-					<h3 className="text-sm text-gray-400 mb-1">Ta'rifi</h3>
-					<p className="text-sm">{planet.description}</p>
+		<AnimatePresence>
+			<motion.div
+				initial={{ opacity: 0, x: 100 }}
+				animate={{ opacity: 1, x: 0 }}
+				exit={{ opacity: 0, x: 100 }}
+				transition={{ type: "spring", damping: 20, stiffness: 100 }}
+				className="fixed top-4 right-4 w-80 bg-gray-900/90 backdrop-blur-lg rounded-lg p-4 text-white z-50"
+				style={{ padding: "12px" }}
+			>
+				<div className="flex justify-between items-center mb-4">
+					<h2 className="text-xl font-bold">{planet.name}</h2>
+					<button
+						onClick={onClose}
+						className="text-gray-400 hover:text-white"
+					>
+						✕
+					</button>
 				</div>
 
-				<div>
-					<h3 className="text-sm text-gray-400 mb-1">Faktlar</h3>
-					<ul className="text-sm space-y-1">
-						{planet.facts.map((fact, i) => (
-							<li key={i}>• {fact}</li>
-						))}
-					</ul>
-				</div>
-
-				<div className="grid grid-cols-2 gap-2">
+				<div className="space-y-4">
 					<div>
-						<h3 className="text-sm text-gray-400">Yo'ldoshlar</h3>
-						<p className="text-sm font-medium">{planet.satellites}</p>
+						<h3 className="text-sm text-gray-400 mb-1">Ta'rifi</h3>
+						<p className="text-sm">{planet.description}</p>
 					</div>
-					<div>
-						<h3 className="text-sm text-gray-400">Sutka</h3>
-						<p className="text-sm font-medium">{planet.dayLength}</p>
-					</div>
-					<div>
-						<h3 className="text-sm text-gray-400">Yil</h3>
-						<p className="text-sm font-medium">{planet.yearLength}</p>
-					</div>
-				</div>
 
-				<div>
-					<h3 className="text-sm text-gray-400 mb-1">Tarkibi</h3>
-					<div className="flex flex-wrap gap-2">
-						{planet.composition.map((element, i) => (
-							<span
-								key={i}
-								className="text-sm px-2 py-1 bg-gray-800 rounded"
-							>
-								{element}
-							</span>
-						))}
+					<div>
+						<h3 className="text-sm text-gray-400 mb-1">Faktlar</h3>
+						<ul className="text-sm space-y-1">
+							{planet.facts.map((fact, i) => (
+								<li key={i}>• {fact}</li>
+							))}
+						</ul>
+					</div>
+
+					<div className="grid grid-cols-2 gap-2">
+						<div>
+							<h3 className="text-sm text-gray-400">Yo'ldoshlar</h3>
+							<p className="text-sm font-medium">{planet.satellites}</p>
+						</div>
+						<div>
+							<h3 className="text-sm text-gray-400">Sutka</h3>
+							<p className="text-sm font-medium">{planet.dayLength}</p>
+						</div>
+						<div>
+							<h3 className="text-sm text-gray-400">Yil</h3>
+							<p className="text-sm font-medium">{planet.yearLength}</p>
+						</div>
+					</div>
+
+					<div>
+						<h3 className="text-sm text-gray-400 mb-1">Tarkibi</h3>
+						<div className="flex flex-wrap gap-2">
+							{planet.composition.map((element, i) => (
+								<span
+									key={i}
+									className="text-sm px-2 py-1 bg-gray-800 rounded"
+								>
+									{element}
+								</span>
+							))}
+						</div>
 					</div>
 				</div>
-			</div>
-		</div>
+			</motion.div>
+		</AnimatePresence>
 	);
 };
 
@@ -509,14 +531,114 @@ const Sun: React.FC = () => {
 	);
 };
 
+const CameraFollowPlanet: React.FC<CameraFollowPlanetProps> = ({
+	selectedPlanet,
+	controlsRef,
+}) => {
+	useFrame(({ clock }) => {
+		if (selectedPlanet && controlsRef.current) {
+			const time = clock.getElapsedTime() * selectedPlanet.speed;
+			const distance = selectedPlanet.radius * 20;
+
+			const pos = new THREE.Vector3(
+				Math.cos(time) * selectedPlanet.orbitRadius,
+				distance * 0.5,
+				Math.sin(time) * selectedPlanet.orbitRadius
+			);
+
+			controlsRef.current.target.set(pos.x, 0, pos.z);
+			controlsRef.current.object.position.set(
+				pos.x + distance,
+				distance * 0.5,
+				pos.z + distance
+			);
+			controlsRef.current.update();
+		}
+	});
+
+	return null;
+};
+
+const BackgroundPlane: React.FC<BackgroundPlaneProps> = ({ handleClick }) => {
+	return (
+		<mesh
+			position={[0, 0, -100]}
+			onClick={(e: ThreeEvent<MouseEvent>) => {
+				e.stopPropagation();
+				handleClick(e);
+			}}
+		>
+			<planeGeometry args={[1000, 1000]} />
+			<meshBasicMaterial visible={false} />
+		</mesh>
+	);
+};
+
 const SolarSystem: React.FC = () => {
+	const controlsRef = useRef<any>(null);
 	const [selectedPlanet, setSelectedPlanet] = useState<PlanetInfo | null>(null);
+	const defaultCameraPosition = [250, 100, 0]; // default kamera pozitsiyasi
 
 	console.log("Current selected planet:", selectedPlanet); // state o'zgarishini kuzatish
 
 	const handlePlanetClick = (planetInfo: PlanetInfo) => {
+		console.log("Moving camera to:", planetInfo.name);
 		console.log("Setting new planet:", planetInfo);
+
+		// Avval state'ni yangilaymiz
 		setSelectedPlanet(planetInfo);
+
+		if (controlsRef.current) {
+			const distance = planetInfo.radius * 20;
+			const pos = new THREE.Vector3(
+				Math.cos(planetInfo.speed) * planetInfo.orbitRadius,
+				distance * 0.5,
+				Math.sin(planetInfo.speed) * planetInfo.orbitRadius
+			);
+
+			// Kamera target animatsiyasi
+			gsap.to(controlsRef.current.target, {
+				duration: 2,
+				x: pos.x,
+				y: 0,
+				z: pos.z,
+				ease: "power2.inOut",
+				onUpdate: () => controlsRef.current.update(),
+			});
+
+			// Kamera position animatsiyasi
+			gsap.to(controlsRef.current.object.position, {
+				duration: 2,
+				x: pos.x + distance,
+				y: distance * 0.5,
+				z: pos.z + distance,
+				ease: "power2.inOut",
+			});
+		}
+	};
+
+	const handleCanvasClick = (event: ThreeEvent<MouseEvent>) => {
+		event.stopPropagation();
+		if (selectedPlanet) {
+			setSelectedPlanet(null);
+			// Kamerani default holatga qaytarish
+			gsap.to(controlsRef.current.target, {
+				duration: 2,
+				x: 0,
+				y: 0,
+				z: 0,
+				ease: "power2.inOut",
+				onUpdate: () => controlsRef.current.update(),
+			});
+
+			gsap.to(controlsRef.current.object.position, {
+				duration: 2,
+				x: defaultCameraPosition[0],
+				y: defaultCameraPosition[1],
+				z: defaultCameraPosition[2],
+				ease: "power2.inOut",
+			});
+		}
 	};
 
 	const planetsData: PlanetInfo[] = [
@@ -687,10 +809,51 @@ const SolarSystem: React.FC = () => {
 				overflow: "hidden",
 			}}
 		>
-			<div className="absolute top-4 left-4 z-10 bg-gray-800/50 backdrop-blur p-4 rounded-lg">
-				<p className="text-sm text-white">
-					Sayyoralar nomini ko'rish uchun sichqonchani ustiga olib boring
+			<div className="absolute top-4 left-4 z-10  p-4 rounded-lg text-white opacity-60">
+				<p>
+					Quyosh Quyosh sistemasining markazida joylashgan ulkan yulduz bo‘lib,
+					asosan vodorod (74%) va geliy (24%) gazlaridan tashkil topgan.
 				</p>
+				<ul>
+					<li>
+						Quyosh massasi Quyosh sistemasidagi barcha jismlarning{" "}
+						<strong>99,8%</strong> qismini tashkil etadi.
+					</li>
+					<li>
+						Yadrosidagi harorat: <strong>15 million °C</strong>
+					</li>
+					<li>
+						<Clock />
+					</li>
+				</ul>
+			</div>
+
+			<div className="absolute bottom-4 right-4 z-10  p-4 rounded-lg text-white opacity-60">
+				<p className="text-2xl ">
+					Sayyoralar haqida ma'lumotlarni ko'rish uchun sichqonchani chap
+					tugmasini sayyora ustiga bosing
+				</p>
+			</div>
+
+			<div className="absolute bottom-4 left-4 z-10  p-4 rounded-lg text-white opacity-60">
+				<h2 className="text-[24px]">Qiziqarli faktlar</h2>
+				<ul>
+					<li>
+						<strong>Eng katta sayyora:</strong> Yupiter
+					</li>
+					<li>
+						<strong>Eng kichik sayyora:</strong> Merkuriy
+					</li>
+					<li>
+						<strong>Eng issiq sayyora:</strong> Venera
+					</li>
+					<li>
+						<strong>Eng sovuq sayyora:</strong> Uran
+					</li>
+					<li>
+						<strong>Eng ko‘p yo‘ldoshi bor sayyora:</strong> Saturn
+					</li>
+				</ul>
 			</div>
 
 			<Canvas
@@ -711,6 +874,16 @@ const SolarSystem: React.FC = () => {
 					stencil: false,
 					depth: true,
 				}}
+				onClick={(e: React.MouseEvent<HTMLDivElement>) => {
+					e.stopPropagation();
+					const nativeEvent = e.nativeEvent as MouseEvent; // React-ning oddiy MouseEvent tipi
+					console.log(
+						"Planet clicked:",
+						name,
+						nativeEvent.clientX,
+						nativeEvent.clientY
+					);
+				}}
 			>
 				<color
 					attach="background"
@@ -724,24 +897,12 @@ const SolarSystem: React.FC = () => {
 				<ambientLight intensity={0.1} />
 				<Sun />
 
-				{/* {planets.map((planet, index) => (
-					<Planet
-						key={index}
-						{...planet}
-						onPlanetClick={(planetInfo: PlanetInfo) =>
-							setSelectedPlanet(planetInfo)
-						}
-					/>
-				))} */}
 				{planetsData.map((planet, index) => (
 					<Planet
 						key={index}
 						{...planet}
+						style={{ cursor: "pointer" }}
 						planets={planetsData} // planetsData ni planets nomi bilan uzatamiz
-						// onPlanetClick={(planetInfo: PlanetInfo) => {
-						// 	console.log("Planet clicked in Solar System:", planetInfo); // callback ishlayotganini tekshirish
-						// 	setSelectedPlanet(planetInfo);
-						// }}
 						onPlanetClick={handlePlanetClick}
 					/>
 				))}
@@ -780,8 +941,12 @@ const SolarSystem: React.FC = () => {
 						radius={0.8}
 					/>
 				</EffectComposer>
-
+				<CameraFollowPlanet
+					selectedPlanet={selectedPlanet}
+					controlsRef={controlsRef}
+				/>
 				<OrbitControls
+					ref={controlsRef}
 					enablePan
 					enableZoom
 					minDistance={50}
@@ -789,6 +954,7 @@ const SolarSystem: React.FC = () => {
 					rotateSpeed={0.5}
 					zoomSpeed={1.2}
 				/>
+				<BackgroundPlane handleClick={handleCanvasClick} />
 			</Canvas>
 			{selectedPlanet && (
 				<PlanetDetailsPanel
